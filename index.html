@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>物品管理統合システム モバイル完全版</title>
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root { 
+            --loan-color: #0077cc; 
+            --loan-glow: rgba(0, 119, 204, 0.1);
+            --return-color: #28a745; 
+            --return-glow: rgba(40, 167, 69, 0.1);
+            --dashboard-color: #4a5568;
+            --class-status-color: #805ad5;
+            --danger-color: #e53e3e; 
+            --success-color: #38a169;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #1a202c;
+            --transition-bounce: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            --transition-smooth: all 0.25s ease;
+        }
+        
+        body { 
+            font-family: 'Zen Maru Gothic', sans-serif; 
+            background: var(--bg); 
+            margin: 0; 
+            padding: 10px 12px 110px 12px;
+            font-size: 16px;
+            color: var(--text-main);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* ⏳ インジケータ */
+        .overlay-loader { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(255,255,255,0.95); display: none; 
+            flex-direction: column; justify-content: center; align-items: center; 
+            z-index: 9000; font-weight: bold;
+        }
+        .spinner {
+            width: 44px; height: 44px; border: 4px solid #e2e8f0; border-top: 4px solid var(--loan-color);
+            border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 12px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        #time-alert { 
+            display: none; background: linear-gradient(135deg, #ff9800, #f57c00); color: white; 
+            text-align: center; padding: 10px; font-size: 0.9em; border-radius: 14px; font-weight: bold;
+            margin-bottom: 12px; animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0% { opacity: 0.9; } 50% { opacity: 1; transform: scale(1.01); } 100% { opacity: 0.9; } }
+
+        /* 🗂️ 洗練された立体カード */
+        .card { 
+            background: var(--card-bg); 
+            border-radius: 22px; padding: 18px; 
+            box-shadow: 0 10px 25px rgba(148, 163, 184, 0.12); 
+            margin-bottom: 14px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-sizing: border-box;
+            transition: var(--transition-smooth);
+        }
+
+        /* 🏷️ モードヘッダー */
+        .banner { 
+            color: white; text-align: center; padding: 14px; border-radius: 18px; margin-bottom: 14px; 
+            font-size: 1.2em; font-weight: bold; box-shadow: 0 6px 15px rgba(0,0,0,0.08);
+            transition: var(--transition-smooth);
+        }
+
+        /* 👥 所属選択タブ */
+        .tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 14px; }
+        .tab { 
+            padding: 12px 2px; text-align: center; background: #edf2f7; border-radius: 14px; 
+            cursor: pointer; font-size: 0.85em; font-weight: bold; color: #4a5568; transition: var(--transition-bounce);
+        }
+        .tab.active { background: #1a202c; color: white; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+
+        /* 入力インターフェース大型化 */
+        select, input, textarea { 
+            width: 100%; padding: 14px; border-radius: 16px; border: 2px solid #e2e8f0; 
+            font-size: 1em; margin-bottom: 12px; font-family: inherit; font-weight: bold;
+            box-sizing: border-box; background: #f8fafc; color: #1a202c; transition: var(--transition-smooth);
+        }
+        select:focus, input:focus { border-color: var(--loan-color); background: white; outline: none; box-shadow: 0 0 0 4px rgba(0, 119, 204, 0.1); }
+
+        /* 📦 物品タイル */
+        .list-container { display: flex; flex-direction: column; gap: 10px; }
+        .item-tile { 
+            border: 2px solid #e2e8f0; border-radius: 20px; padding: 16px; 
+            background: white; transition: var(--transition-bounce);
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .item-tile.selected-active { 
+            border-color: var(--theme-color); 
+            background: var(--theme-bg); 
+            transform: scale(1.02);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.04);
+        }
+
+        .tile-header { display: flex; justify-content: space-between; align-items: center; }
+        .tile-title { margin: 0; font-size: 1.1em; font-weight: bold; }
+        .tile-stock { font-size: 0.8em; color: #718096; margin: 0; }
+
+        /* カウンター */
+        .counter-area { display: flex; align-items: center; justify-content: center; gap: 25px; margin-top: 4px; }
+        .btn-q { 
+            width: 48px; height: 48px; border-radius: 16px; border: none; 
+            background: #edf2f7; font-size: 1.5em; cursor: pointer; font-weight: bold;
+            display: flex; align-items: center; justify-content: center; color: #2d3748;
+            transition: var(--transition-smooth);
+        }
+        .btn-q:active { background: #cbd5e0; transform: scale(0.9); }
+        .qty-display { font-size: 1.8em; font-weight: bold; min-width: 45px; text-align: center; }
+
+        /* 🔥 メイン確定・送信ボタン（劇的改善） */
+        .btn-submit { 
+            width: 100%; padding: 18px; border-radius: 35px; border: none; 
+            font-size: 1.25em; color: white; cursor: pointer; font-weight: bold; 
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15); transition: var(--transition-bounce);
+            text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .btn-submit:active { transform: scale(0.96); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+
+        /* 📊 在庫ダッシュボード */
+        .db-search-bar { position: sticky; top: 0; z-index: 10; background: var(--bg); padding-bottom: 10px; }
+        .db-grid { display: flex; flex-direction: column; gap: 8px; }
+        .db-item { 
+            padding: 15px; border-radius: 16px; font-weight: bold; 
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+        }
+        .db-out { background: #fff5f5; color: #c53030; border-left: 6px solid var(--danger-color); }
+        .db-in { background: #f0fff4; color: #22543d; border-left: 6px solid var(--success-color); }
+        .db-badge { padding: 5px 10px; border-radius: 8px; font-size: 0.8em; color: white; }
+        .db-badge-out { background: var(--danger-color); }
+        .db-badge-in { background: var(--success-color); }
+
+        /* 📋 クラス返却状況専用 */
+        .status-grid { display: flex; flex-direction: column; gap: 10px; }
+        .status-card {
+            background: white; border-radius: 16px; padding: 14px 16px;
+            border-left: 6px solid var(--class-status-color);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        }
+
+        /* ⚠️ 割り込みお知らせ */
+        #custom-soldout-bar {
+            display: none; background: #fffaf0; color: #dd6b20; padding: 12px; 
+            border-radius: 16px; margin-bottom: 12px; font-size: 0.9em; font-weight: bold;
+            border-left: 6px solid #dd6b20;
+        }
+
+        /* 🪟 フル画面ぼかしモーダル */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 8000; background: rgba(15, 23, 42, 0.3); backdrop-filter: blur(10px);
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal-content { 
+            background: #ffffff; width: 92%; max-width: 46px0px; margin: 30px auto; 
+            border-radius: 28px; padding: 24px; box-shadow: 0 25px 60px rgba(0,0,0,0.25);
+            max-height: 85vh; overflow-y: auto; box-sizing: border-box;
+        }
+
+        /* ⚓ 画面最下部固定ナビゲーション */
+        #footer-nav { 
+            position: fixed; bottom: 0; left: 0; width: 100%; display: flex; 
+            background: rgba(255,255,255,0.94); backdrop-filter: blur(14px); 
+            box-shadow: 0 -4px 25px rgba(148, 163, 184, 0.15); z-index: 5000; 
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .nav-item { 
+            flex: 1; text-align: center; padding: 12px 2px; cursor: pointer; 
+            font-weight: bold; font-size: 0.75em; color: #718096; transition: var(--transition-bounce);
+            display: flex; flex-direction: column; align-items: center; gap: 3px;
+        }
+        .nav-item span { font-size: 1.4em; }
+        .nav-item.active { color: var(--act-color); font-size: 0.8em; }
+        .nav-item.active::after { content:''; width: 24px; height: 4px; background: var(--act-color); border-radius: 2px; margin-top: 2px; }
+
+        /* ⚙️ ギアアイコン */
+        #gear-icon { 
+            position: absolute; top: 12px; right: 12px; cursor: pointer; 
+            font-size: 1.3em; background: white; width: 40px; height: 40px; 
+            display: flex; align-items: center; justify-content: center; border-radius: 50%; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.06); z-index: 2000;
+        }
+        
+        /* 🕒 ヘッダー周りの軽量化・小型化 */
+        .header-container { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding-right: 55px; }
+        #clock { font-size: 1.1em; font-weight: bold; color: #4a5568; background: #edf2f7; padding: 6px 12px; border-radius: 12px; }
+        .btn-refresh-top {
+            background: white; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 12px;
+            font-size: 0.85em; font-weight: bold; color: var(--loan-color); cursor: pointer;
+            display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+        }
+        .btn-refresh-top:active { transform: scale(0.95); }
+    </style>
+</head>
+<body>
+
+<div id="loader" class="overlay-loader"><div class="spinner"></div><div id="loader-text">🚀 読み込み中...</div></div>
+<div id="gear-icon" onclick="openAdminMode()">⚙️</div>
+<div id="time-alert">⚠️ 返却締め切り時刻が近づいています！</div>
+
+<div class="header-container">
+    <div id="clock">00:00:00</div>
+    <button class="btn-refresh-top" onclick="refreshData()">🔄 最新に更新</button>
+    <div id="sync-time" style="font-size: 0.7em; color: #a0aec0; margin-left: auto;">同期中...</div>
+</div>
+
+<div id="info-box" class="card" style="display: none; border-left: 6px solid var(--loan-color); background: #f4f9ff; padding: 12px 16px;">
+    <div style="font-weight: bold; color: var(--loan-color); font-size: 0.85em;">📢 お知らせ</div>
+    <div id="info-text" style="margin-top: 3px; font-size: 0.85em; white-space: pre-wrap; color: #4a5568;"></div>
+</div>
+
+<div id="section-action" style="display: block;">
+    <div id="mode-banner" class="banner">📥 物品貸出 モード</div>
+
+    <div class="card">
+        <div class="tabs">
+            <div id="t-class" class="tab active" onclick="setUT('class')">クラス</div>
+            <div id="t-vun" class="tab" onclick="setUT('vun')">文実</div>
+            <div id="t-comm" class="tab" onclick="setUT('comm')">委員会</div>
+            <div id="t-club" class="tab" onclick="setUT('club')">部活</div>
+        </div>
+        <div id="selectors">
+            <div id="vun-area" style="display:none;"><select id="vun-role" onchange="onUserSelectChange()"></select></div>
+            <div id="comm-area" style="display:none;"><select id="comm-name" onchange="onUserSelectChange()"></select></div>
+            <div id="club-area" style="display:none;"><select id="club-name" onchange="onUserSelectChange()"></select></div>
+            <div style="display:flex; gap:8px;">
+                <select id="grade" onchange="onUserSelectChange()"><option>1年</option><option>2年</option><option>3年</option></select>
+                <select id="hr" onchange="onUserSelectChange()"></select>
+            </div>
+            <div id="no-select-container">
+                <select id="no" onchange="checkUserLoans()">
+                    <option value="">出席番号を選択</option>
+                    <script>for(let i=1;i<=40;i++)document.write(`<option value="${i}">${i}番</option>`)</script>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="background: none; padding: 0; box-shadow: none; border: none;">
+        <button id="btn-all-return" style="display:none; width:100%; padding:14px; border-radius:16px; border:2px dashed var(--return-color); background:white; color:var(--return-color); font-weight:bold; margin-bottom:12px; cursor:pointer;" onclick="fillAllReturnQty()">✅ 借用中の物品をすべて最大数にする</button>
+        <div id="item-list-area" class="list-container"></div>
+        <button id="sub-btn" class="btn-submit" style="margin-top: 15px;" onclick="prepareSubmit()">確定画面へ進む</button>
+    </div>
+</div>
+
+<div id="section-dashboard" style="display: none;">
+    <div id="custom-soldout-bar"></div>
+    <div class="db-search-bar">
+        <input type="text" id="db-search" placeholder="🔍 物品名で検索・絞り込み..." oninput="renderDashboardList()" style="margin: 0; padding: 12px 16px;">
+    </div>
+    <div class="card" style="padding: 14px;">
+        <div style="font-weight: bold; font-size: 1.05em; margin-bottom: 12px;">📊 現在のリアルタイム在庫状況</div>
+        <div id="dashboard-items-box" class="db-grid"></div>
+    </div>
+</div>
+
+<div id="section-class-status" style="display: none;">
+    <div class="card" style="background: #f3f0ff; border-color: #d6bcfa;">
+        <div style="font-weight: bold; color: var(--class-status-color); font-size: 1em;" id="class-status-title">📋 現在の選択クラス</div>
+        <div style="font-size: 0.8em; color: #6b46c1; margin-top: 2px;">※出席番号は非表示で、団体・クラスごとの未返却内訳が確認できます</div>
+    </div>
+    <div id="class-status-list" class="status-grid"></div>
+</div>
+
+<div id="footer-nav">
+    <div id="n-loan" class="nav-item" onclick="switchMainMode('loan')"><span>📥</span>借りる</div>
+    <div id="n-return" class="nav-item" onclick="switchMainMode('return')"><span>📤</span>返す</div>
+    <div id="n-dash" class="nav-item" onclick="switchMainMode('dashboard')"><span>📊</span>全体状況</div>
+    <div id="n-status" class="nav-item" onclick="switchMainMode('status')"><span>📋</span>返却状況</div>
+</div>
+
+<div id="confirm-overlay" class="modal-overlay">
+    <div class="modal-content">
+        <h3 id="confirm-title" style="margin-top: 0; padding-left: 10px; border-left: 6px solid var(--loan-color);">📋 手続き内容の最終確認</h3>
+        <div style="background: #f8fafc; padding: 14px; border-radius: 16px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 0.8em; color: #718096; font-weight: bold;">申請者</div>
+            <div id="confirm-user" style="font-size: 1.05em; font-weight: bold; margin-top: 2px; color: #1a202c;"></div>
+        </div>
+        <div style="margin-bottom: 20px;">
+            <label style="font-size: 0.85em; color: #718096; font-weight: bold;">手続きをする物品</label>
+            <div id="confirm-item-list" style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+        
+        <button class="btn-submit" id="confirm-submit-btn" onclick="executeSubmit()">🚀 この内容で送信する</button>
+        
+        <button onclick="document.getElementById('confirm-overlay').style.display='none'" style="width:100%; background:none; border:none; color:var(--danger-color); margin-top:16px; font-weight:bold; cursor:pointer; font-size:0.95em;">修正する（戻る）</button>
+    </div>
+</div>
+
+<div id="settings-overlay" class="modal-overlay">
+    <div class="modal-content">
+        <h3 style="margin-top:0; border-left: 6px solid var(--dashboard-color); padding-left: 10px;">⚙️ 管理者メニュー</h3>
+        <div style="background: #fff5f5; padding: 12px; border-radius: 16px; border: 1px solid #fed7d7; margin-bottom: 12px;">
+            <label style="color: var(--danger-color); font-size: 0.85em; display: block; margin-bottom: 4px; font-weight: bold;">🚨 消耗品の品切れ連絡（全体状況へ割り込み表示）</label>
+            <input type="text" id="set-soldout-custom" placeholder="例：ガムテープ終了, テープ品切れ" style="margin-bottom:0; padding:10px; background: white;">
+        </div>
+        <div>
+            <label style="font-size: 0.85em; font-weight: bold; color: #4a5568;">📢 トップ画面のお知らせ文</label>
+            <textarea id="set-info-text" rows="2" style="padding:10px; background: white;"></textarea>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div><label style="font-size:0.8em; font-weight: bold;">⏰ 警告時刻(時)</label><input type="number" id="set-alert-h" style="background: white;"></div>
+            <div><label style="font-size:0.8em; font-weight: bold;">⏰ 警告時刻(分)</label><input type="number" id="set-alert-m" style="background: white;"></div>
+        </div>
+        <div><label style="font-size:0.8em; font-weight: bold;">🏫 クラス(組)の最大数</label><input type="number" id="set-hr-max" style="background: white;"></div>
+        <button class="btn-submit" style="background:var(--dashboard-color);" onclick="closeAdminMode()">設定を保存して閉じる</button>
+        <button onclick="document.getElementById('settings-overlay').style.display='none'" style="width:100%; background:none; border:none; color:#718096; margin-top:14px; font-weight:bold; cursor:pointer;">閉じる</button>
+    </div>
+</div>
+
+<script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbxlCn-V8fymykATO1KHMVEKiw_nzz1Wlo7QogClgj7Qb6JF83g4_CHOKj4qzKhQ1Puy/exec";
+    const ADMIN_PASSWORD = "midunoki"; // 🔐 設定されたパスワード
+
+    let LISTS = { 
+        vun: ["OP･ED", "体育館ステージ", "装飾", "門制作", "野外ステージ", "後夜祭","バンド","本部"], 
+        comm: ["図書委員会", "国際理解委員会", "放送委員会","生活委員会"], 
+        club: ["茶道部", "美術部", "吹奏楽部", "演劇部", "写真部", "情報技術研究部", "ハンドメイド部"] 
+    };
+
+    let state = { 
+        currentMode: 'loan', // loan, return, dashboard, status
+        ut: 'class', 
+        items: [], 
+        userLoans: {}, 
+        allLoansCache: {}, // 全未返却データのキャッシュ
+        config: { alertH: 18, alertM: 30, hrMax: 8, infoText: "数量を確認の上、確定ボタンを押してください。", customSoldOut: "" }, 
+        pendingSubmitData: null 
+    };
+
+    function initLists() {
+        const fill = (id, list) => { document.getElementById(id).innerHTML = '<option value="">▼ 選択してください</option>' + list.map(item => `<option value="${item}">${item}</option>`).join(''); };
+        fill('vun-role', LISTS.vun); fill('comm-name', LISTS.comm); fill('club-name', LISTS.club);
+        const hrEl = document.getElementById('hr'); hrEl.innerHTML = '';
+        for(let i=1; i<=state.config.hrMax; i++) hrEl.innerHTML += `<option>${i}組</option>`;
+    }
+
+    function saveConfigToStorage() { localStorage.setItem('council_system_config', JSON.stringify(state.config)); }
+    function loadConfigFromStorage() {
+        const saved = localStorage.getItem('council_system_config');
+        if (saved) { try { Object.assign(state.config, JSON.parse(saved)); } catch(e){} }
+    }
+
+    // 🔄 メインナビゲーション切り替え
+    function switchMainMode(mode) {
+        state.currentMode = mode;
+        
+        ['loan', 'return', 'dashboard', 'status'].forEach(m => {
+            const el = document.getElementById('n-' + (m === 'dashboard' ? 'dash' : m === 'status' ? 'status' : m));
+            if(el) {
+                el.className = 'nav-item';
+                el.style.setProperty('--act-color', 'transparent');
+            }
+        });
+
+        // セクション表示制御
+        document.getElementById('section-action').style.display = (mode === 'loan' || mode === 'return') ? 'block' : 'none';
+        document.getElementById('section-dashboard').style.display = (mode === 'dashboard') ? 'block' : 'none';
+        document.getElementById('section-class-status').style.display = (mode === 'status') ? 'block' : 'none';
+
+        const activeNav = document.getElementById('n-' + (mode === 'dashboard' ? 'dash' : mode === 'status' ? 'status' : mode));
+        if(activeNav) activeNav.classList.add('active');
+
+        if (mode === 'loan' || mode === 'return') {
+            if (mode === 'loan') {
+                activeNav.style.setProperty('--act-color', 'var(--loan-color)');
+                document.getElementById('mode-banner').innerText = '📥 物品貸出 モード';
+                document.getElementById('mode-banner').style.background = 'var(--loan-color)';
+                document.getElementById('sub-btn').style.background = 'var(--loan-color)';
+                document.getElementById('btn-all-return').style.display = 'none';
+            } else {
+                activeNav.style.setProperty('--act-color', 'var(--return-color)');
+                document.getElementById('mode-banner').innerText = '📤 物品返却 モード';
+                document.getElementById('mode-banner').style.background = 'var(--return-color)';
+                document.getElementById('sub-btn').style.background = 'var(--return-color)';
+                document.getElementById('btn-all-return').style.display = 'block';
+            }
+            renderActionItemList();
+        } else if (mode === 'dashboard') {
+            activeNav.style.setProperty('--act-color', 'var(--dashboard-color)');
+            renderDashboardList();
+            renderCustomSoldOutBar();
+        } else if (mode === 'status') {
+            activeNav.style.setProperty('--act-color', 'var(--class-status-color)');
+            renderClassStatusList();
+        }
+    }
+
+    function setUT(t){
+        state.ut = t;
+        ['class', 'vun', 'comm', 'club'].forEach(id => { document.getElementById('t-'+id).className = (t === id) ? 'tab active' : 'tab'; });
+        document.getElementById('vun-area').style.display = (t==='vun')?'block':'none';
+        document.getElementById('comm-area').style.display = (t==='comm')?'block':'none';
+        document.getElementById('club-area').style.display = (t==='club')?'block':'none';
+        onUserSelectChange();
+    }
+
+    function onUserSelectChange() {
+        checkUserLoans();
+        if(state.currentMode === 'status') {
+            renderClassStatusList();
+        }
+    }
+
+    // クラス・団体プレフィックスを生成 (出席番号は含まない条件用)
+    function getClassPrefix() {
+        const g = document.getElementById('grade').value;
+        const h = document.getElementById('hr').value;
+        const baseClass = `${g}${h}`;
+        if(state.ut === 'vun') return `文実[${document.getElementById('vun-role').value}] ${baseClass}`;
+        if(state.ut === 'comm') return `委員会[${document.getElementById('comm-name').value}] ${baseClass}`;
+        if(state.ut === 'club') return `部活[${document.getElementById('club-name').value}] ${baseClass}`;
+        return baseClass;
+    }
+
+    function getUsername(){
+        const n = document.getElementById('no').value;
+        return n ? `${getClassPrefix()}(${n}番)` : "";
+    }
+
+    async function checkUserLoans(){
+        const user = getUsername();
+        if(!user) return;
+        try { 
+            const res = await fetch(`${API_URL}?action=getUserLoans&user=${encodeURIComponent(user)}`); 
+            state.userLoans = await res.json(); 
+            if(state.currentMode === 'loan' || state.currentMode === 'return') renderActionItemList();
+        } catch(e){}
+    }
+
+    // 📥 📤 貸出・返却リスト描写
+    function renderActionItemList() {
+        const container = document.getElementById('item-list-area');
+        if(state.items.length === 0) {
+            container.innerHTML = `<div style="text-align:center; padding:20px; color:#a0aec0;">物品データを読み込んでいます...</div>`;
+            return;
+        }
+
+        const themeColor = state.currentMode === 'loan' ? 'var(--loan-color)' : 'var(--return-color)';
+        const themeBg = state.currentMode === 'loan' ? 'var(--loan-glow)' : 'var(--return-glow)';
+
+        let matchCount = 0;
+        container.innerHTML = state.items.map((it, i) => {
+            const activeLoanQty = state.userLoans[it.name] || 0;
+            if(state.currentMode === 'return' && activeLoanQty <= 0) return ''; 
+            matchCount++;
+
+            return `
+            <div class="item-tile" id="tile-${i}" style="--theme-color:${themeColor}; --theme-bg:${themeBg};">
+                <div class="tile-header">
+                    <div>
+                        <h4 class="tile-title">${it.name}</h4>
+                        <p class="tile-stock">利用可能在庫: ${it.stock}個</p>
+                    </div>
+                    ${activeLoanQty > 0 ? `<div style="font-size:0.75em; font-weight:bold; color:var(--danger-color); background:#fff5f5; padding:4px 8px; border-radius:8px; border:1px solid #fed7d7;">現在借用中: ${activeLoanQty}</div>` : ''}
+                </div>
+                <div class="counter-area">
+                    <button class="btn-q" onclick="adjustQty(${i}, -1)">-</button>
+                    <span id="q-${i}" class="qty-display">0</span>
+                    <button class="btn-q" onclick="adjustQty(${i}, 1)">+</button>
+                </div>
+            </div>`;
+        }).join('');
+
+        if(state.currentMode === 'return' && matchCount === 0) {
+            container.innerHTML = `<div style="text-align:center; padding:30px; color:#718096; font-weight:bold;">🎉 現在このアカウント（出席番号）で借用中の物品はありません。</div>`;
+        }
+    }
+
+    function adjustQty(index, delta) {
+        const el = document.getElementById(`q-${index}`);
+        if(!el) return;
+        let val = parseInt(el.innerText) + delta;
+        const maxLimit = state.currentMode === 'loan' ? state.items[index].stock : (state.userLoans[state.items[index].name] || 0);
+        
+        if(val < 0 || val > maxLimit) return;
+        el.innerText = val;
+
+        const tile = document.getElementById(`tile-${index}`);
+        if(val > 0) tile.classList.add('selected-active');
+        else tile.classList.remove('selected-active');
+    }
+
+    function fillAllReturnQty() {
+        state.items.forEach((it, i) => {
+            const el = document.getElementById(`q-${i}`);
+            if(el) {
+                const target = state.userLoans[it.name] || 0;
+                el.innerText = target;
+                const tile = document.getElementById(`tile-${i}`);
+                if(target > 0) tile.classList.add('selected-active');
+                else tile.classList.remove('selected-active');
+            }
+        });
+    }
+
+    // 📊 在庫ダッシュボード
+    function renderDashboardList() {
+        const box = document.getElementById('dashboard-items-box');
+        const filterText = document.getElementById('db-search').value.toLowerCase().trim();
+        if (state.items.length === 0) {
+            box.innerHTML = `<div style="text-align:center; padding:20px; color:#a0aec0;">データを同期しています...</div>`;
+            return;
+        }
+
+        let html = "";
+        const filtered = state.items.filter(it => it.name.toLowerCase().includes(filterText));
+        if(filtered.length === 0) {
+            box.innerHTML = `<div style="text-align:center; padding:20px; color:#a0aec0;">該当する物品がありません</div>`;
+            return;
+        }
+
+        filtered.forEach(item => {
+            if (item.stock <= 0) {
+                html += `<div class="db-item db-out"><span>${item.name}</span><span class="db-badge db-badge-out">貸出中 (在庫なし)</span></div>`;
+            } else {
+                html += `<div class="db-item db-in"><span>${item.name}</span><span class="db-badge db-badge-in">残り ${item.stock} 個</span></div>`;
+            }
+        });
+        box.innerHTML = html;
+    }
+
+    // 📋 【新設】クラス・団体別の返却状況（出席番号は非表示・セキュリティ担保）
+    function renderClassStatusList() {
+        const box = document.getElementById('class-status-list');
+        const currentPrefix = getClassPrefix(); // 例: "1年1組" や "部活[茶道部] 1年1組"
+        
+        document.getElementById('class-status-title').innerText = `📋 ${currentPrefix} の未返却一覧`;
+
+        if(Object.keys(state.allLoansCache).length === 0) {
+            box.innerHTML = `<div style="text-align:center; padding:30px; color:#a0aec0;">データを取得中、または未返却の物品はありません</div>`;
+            return;
+        }
+
+        // 「現在の所属・学年・クラス」の前方一致でデータを集計
+        let summaryMap = {}; // { "パイプ椅子": 3, "長机": 1 } 
+        let hasData = false;
+
+        for (const user in state.allLoansCache) {
+            // 例: "1年1組(12番)" から "(12番)" を除いた前方部分が一致するか検証
+            if (user.startsWith(currentPrefix)) {
+                const userItems = state.allLoansCache[user];
+                for (const itemName in userItems) {
+                    const qty = userItems[itemName];
+                    if (qty > 0) {
+                        summaryMap[itemName] = (summaryMap[itemName] || 0) + qty;
+                        hasData = true;
+                    }
+                }
+            }
+        }
+
+        if(!hasData) {
+            box.innerHTML = `
+            <div style="text-align:center; padding:40px 20px; color:var(--success-color); font-weight:bold;" class="card">
+                ✨ 素晴らしい！<br>このクラス・団体の中に現在未返却の物品はありません。
+            </div>`;
+            return;
+        }
+
+        let html = "";
+        for (const itemName in summaryMap) {
+            html += `
+            <div class="status-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; font-weight:bold;">
+                    <span style="font-size:1.05em; color:#2d3748;">📦 ${itemName}</span>
+                    <span style="color:var(--danger-color); font-size:1.2em; background:#fff5f5; padding:2px 10px; border-radius:10px;">合計 ${summaryMap[itemName]} 個 未返却</span>
+                </div>
+            </div>`;
+        }
+        box.innerHTML = html;
+    }
+
+    function renderCustomSoldOutBar() {
+        const bar = document.getElementById('custom-soldout-bar');
+        if (state.config.customSoldOut && state.config.customSoldOut.trim() !== "") {
+            const items = state.config.customSoldOut.split(',').map(s => `【${s.trim()}】`).join(' ');
+            bar.innerHTML = `⚠️ 消耗品連絡： <span style="color:var(--danger-color)">${items}</span>`;
+            bar.style.display = 'block';
+        } else { bar.style.display = 'none'; }
+    }
+
+    // 📋 確定画面へ進む
+    function prepareSubmit() {
+        if(!document.getElementById('no').value) return alert("出席番号を選択してください");
+        const selectedItems = [];
+        state.items.forEach((it, i) => {
+            const v = parseInt(document.getElementById(`q-${i}`)?.innerText || 0);
+            if(v > 0) selectedItems.push({ name: it.name, qty: v });
+        });
+
+        if(selectedItems.length === 0) return alert("数量を1つ以上追加してください");
+        
+        state.pendingSubmitData = { user: getUsername(), type: state.currentMode, items: selectedItems };
+        document.getElementById('confirm-user').innerText = getUsername();
+        
+        // モード別のハッキリした送信色に動的書き換え
+        const submitBtn = document.getElementById('confirm-submit-btn');
+        if(state.currentMode === 'loan') {
+            submitBtn.style.background = 'linear-gradient(135deg, #0088ff, #0055cc)';
+            submitBtn.innerText = `🚀 この内容で【貸出】を送信する`;
+        } else {
+            submitBtn.style.background = 'linear-gradient(135deg, #2ecc71, #27ae60)';
+            submitBtn.innerText = `🚀 この内容で【返却】を送信する`;
+        }
+
+        document.getElementById('confirm-item-list').innerHTML = selectedItems.map(it => `
+            <div style="display:flex; justify-content:space-between; font-weight:bold; border-bottom:1px dashed #edf2f7; padding:8px 0; font-size:1em;">
+                <span>🔹 ${it.name}</span>
+                <span style="color:${state.currentMode==='loan'?'var(--loan-color)':'var(--return-color)'}">${it.qty} 個</span>
+            </div>
+        `).join('');
+        document.getElementById('confirm-overlay').style.display = 'block';
+    }
+
+    async function executeSubmit() {
+        document.getElementById('confirm-overlay').style.display = 'none'; 
+        document.getElementById('loader-text').innerText = "🚀 サーバーへ送信中...";
+        document.getElementById('loader').style.display = 'flex';
+        try { 
+            await fetch(API_URL, { method: 'POST', body: JSON.stringify(state.pendingSubmitData) }); 
+            alert("🎉 手続きが正常に登録されました！"); 
+            location.reload(); 
+        } catch(e) { 
+            alert("通信エラーが発生しました。電波の良い場所でもう一度お試しください"); 
+            document.getElementById('loader').style.display = 'none'; 
+        }
+    }
+
+    // 🔐 パスワード要求付き管理者モード
+    function openAdminMode() {
+        const pw = prompt("🔑 管理者パスワードを入力してください:");
+        if (pw === null) return; // キャンセル
+        if (pw !== ADMIN_PASSWORD) {
+            alert("❌ パスワードが違います。");
+            return;
+        }
+
+        loadConfigFromStorage();
+        document.getElementById('set-info-text').value = state.config.infoText;
+        document.getElementById('set-alert-h').value = state.config.alertH;
+        document.getElementById('set-alert-m').value = state.config.alertM;
+        document.getElementById('set-hr-max').value = state.config.hrMax;
+        document.getElementById('set-soldout-custom').value = state.config.customSoldOut || "";
+        document.getElementById('settings-overlay').style.display = 'block';
+    }
+
+    function closeAdminMode() {
+        state.config.alertH = parseInt(document.getElementById('set-alert-h').value) || 18;
+        state.config.alertM = parseInt(document.getElementById('set-alert-m').value) || 30;
+        state.config.hrMax = parseInt(document.getElementById('set-hr-max').value) || 8;
+        state.config.infoText = document.getElementById('set-info-text').value;
+        state.config.customSoldOut = document.getElementById('set-soldout-custom').value;
+        
+        saveConfigToStorage();
+        initLists();
+        renderTopInfo();
+        renderCustomSoldOutBar();
+        document.getElementById('settings-overlay').style.display = 'none';
+    }
+
+    function renderTopInfo() {
+        const box = document.getElementById('info-box');
+        if (state.config.infoText && state.config.infoText.trim() !== "") {
+            document.getElementById('info-text').innerText = state.config.infoText;
+            box.style.display = 'block';
+        } else { box.style.display = 'none'; }
+    }
+
+    // 🔄 全データ・在庫・全体貸出キャッシュの統合同期
+    async function refreshData() {
+        document.getElementById('sync-time').innerText = `🔄 同期中...`;
+        try { 
+            // 在庫リスト取得
+            const resItems = await fetch(`${API_URL}?action=getItems`); 
+            state.items = await resItems.json(); 
+
+            // クラス状況確認用の全件借用データ取得
+            const resAllLoans = await fetch(`${API_URL}?action=getAllLoans`);
+            state.allLoansCache = await resAllLoans.json();
+
+            // 現在のアクティブ画面をリフレッシュ
+            if(state.currentMode === 'dashboard') renderDashboardList();
+            else if(state.currentMode === 'status') renderClassStatusList();
+            else renderActionItemList();
+
+            const d = new Date();
+            document.getElementById('sync-time').innerText = `最終同期: ${d.toLocaleTimeString()}`;
+        } catch(e){
+            document.getElementById('sync-time').innerText = `⚠️ 同期エラー`;
+        }
+    }
+
+    function clockTick() {
+        const now = new Date(); 
+        document.getElementById('clock').innerText = now.toLocaleTimeString();
+        const currentTotal = now.getHours() * 60 + now.getMinutes();
+        const alertTotal = state.config.alertH * 60 + state.config.alertM;
+        document.getElementById('time-alert').style.display = (currentTotal >= alertTotal) ? 'block' : 'none';
+    }
+
+    window.onload = async function() {
+        loadConfigFromStorage();
+        initLists();
+        renderTopInfo();
+        switchMainMode('loan'); 
+        
+        setInterval(clockTick, 1000);
+        await refreshData();
+        setInterval(refreshData, 15000); // 15秒おきに自動バックグラウンドサイレント同期
+
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'council_system_config') {
+                loadConfigFromStorage();
+                renderTopInfo();
+                renderCustomSoldOutBar();
+            }
+        });
+    }
+</script>
+</body>
+</html>
